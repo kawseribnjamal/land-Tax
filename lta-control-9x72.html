@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+  <title>Land-Tax Admin | Control Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --navy: #0a1a3a; --gold: #d4a13e; --gold-light: #e6bc6a; --green: #1a5c3e; --red: #c62828; }
+    body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); min-height: 100vh; padding: 40px 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card { background: white; border-radius: 24px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); margin-bottom: 20px; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .header h1 { color: var(--gold-light); font-size: 28px; }
+    .login-box { max-width: 400px; margin: 0 auto; text-align: center; }
+    input { width: 100%; padding: 14px 16px; border: 1.5px solid #e2e8f0; border-radius: 14px; margin-bottom: 15px; font-size: 15px; }
+    .btn { background: var(--navy); color: white; font-weight: 700; padding: 14px 24px; border: none; border-radius: 40px; cursor: pointer; }
+    .btn-danger { background: var(--red); }
+    .btn-green { background: var(--green); }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; }
+    .stats { background: var(--navy); color: white; padding: 10px 20px; border-radius: 40px; }
+    .stats span { font-size: 28px; font-weight: 800; color: var(--gold-light); }
+    .table-wrapper { overflow-x: auto; border-radius: 16px; border: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--navy); color: var(--gold-light); padding: 14px; text-align: left; }
+    td { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; }
+    tr:hover { background: #f8fafc; }
+    .whatsapp-link { color: #25D366; text-decoration: none; font-weight: 600; }
+    .delete-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 18px; }
+    .error-msg { color: var(--red); margin-top: 10px; }
+    .hidden { display: none; }
+    .success-msg { color: var(--green); margin-top: 10px; }
+    @media (max-width: 640px) { .card { padding: 20px; } th, td { padding: 8px; font-size: 12px; } }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <div class="header"><h1><i class="fas fa-lock"></i> Land-Tax Admin Panel</h1><p>শুধুমাত্র অনুমোদিত ব্যক্তি প্রবেশ করতে পারবেন</p></div>
+    
+    <!-- Login Section -->
+    <div id="loginSection">
+      <div class="login-box">
+        <input type="email" id="adminEmail" placeholder="Admin Email" value="kawseribnjamal58@gmail.com">
+        <input type="password" id="adminPassword" placeholder="Password">
+        <button class="btn" onclick="adminLogin()"><i class="fas fa-sign-in-alt"></i> লগইন করুন</button>
+        <div id="loginError" class="error-msg"></div>
+      </div>
+    </div>
+    
+    <!-- Dashboard Section -->
+    <div id="dashboardSection" class="hidden">
+      <div class="toolbar">
+        <div class="stats"><i class="fas fa-users"></i> মোট আবেদন: <span id="totalCount">0</span> জন</div>
+        <div>
+          <button class="btn-green" onclick="exportToCSV()"><i class="fas fa-file-csv"></i> CSV Export</button>
+          <button class="btn-green" onclick="exportToExcel()"><i class="fas fa-file-excel"></i> Excel Export</button>
+          <button class="btn" onclick="loadData()"><i class="fas fa-sync-alt"></i> রিফ্রেশ</button>
+          <button class="btn-danger" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i> লগআউট</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table id="dataTable">
+          <thead><tr><th>#</th><th>নাম</th><th>WhatsApp</th><th>ব্যাংক</th><th>তারিখ</th><th>অ্যাকশন</th></tr></thead>
+          <tbody id="tableBody"><tr><td colspan="6" style="text-align:center;">লোড হচ্ছে...<\/td><\/tr><\/tbody>
+        <\/table>
+      <\/div>
+    <\/div>
+  <\/div>
+<\/div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDqt6uCDoJhU4LWWHk1eFM_d4cVUeeU_V8",
+    authDomain: "land-tax-8744a.firebaseapp.com",
+    databaseURL: "https://land-tax-8744a-default-rtdb.firebaseio.com",
+    projectId: "land-tax-8744a",
+    storageBucket: "land-tax-8744a.firebasestorage.app"
+  };
+  
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.database();
+  let currentData = [];
+
+  // Check auth state on load
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById('loginSection').classList.add('hidden');
+      document.getElementById('dashboardSection').classList.remove('hidden');
+      loadData();
+    } else {
+      document.getElementById('loginSection').classList.remove('hidden');
+      document.getElementById('dashboardSection').classList.add('hidden');
+    }
+  });
+
+  window.adminLogin = async () => {
+    const email = document.getElementById('adminEmail').value.trim();
+    const password = document.getElementById('adminPassword').value;
+    const errorDiv = document.getElementById('loginError');
+    
+    if (!email || !password) {
+      errorDiv.innerHTML = '❌ ইমেইল এবং পাসওয়ার্ড দিন';
+      return;
+    }
+    
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+      errorDiv.innerHTML = '';
+    } catch(e) {
+      if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
+        errorDiv.innerHTML = '❌ ভুল ইমেইল বা পাসওয়ার্ড!';
+      } else if (e.code === 'auth/invalid-email') {
+        errorDiv.innerHTML = '❌ সঠিক ইমেইল দিন';
+      } else {
+        errorDiv.innerHTML = '❌ লগইন ব্যর্থ! ' + e.message;
+      }
+      console.error(e);
+    }
+  };
+
+  window.adminLogout = async () => { 
+    try {
+      await auth.signOut();
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  window.loadData = async () => {
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">লোড হচ্ছে...<\/td><\/tr>';
+    
+    try {
+      const snapshot = await db.ref('customers').once('value');
+      const data = snapshot.val();
+      
+      if (!data) { 
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">কোনো আবেদন নেই<\/td><\/tr>'; 
+        document.getElementById('totalCount').innerText = '0'; 
+        currentData = []; 
+        return; 
+      }
+      
+      currentData = [];
+      for (let key in data) { 
+        if (data.hasOwnProperty(key)) {
+          currentData.push({ id: key, ...data[key] }); 
+        }
+      }
+      currentData.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+      document.getElementById('totalCount').innerText = currentData.length;
+      
+      let html = '';
+      currentData.forEach((item, idx) => {
+        const date = item.timestamp ? new Date(item.timestamp).toLocaleString('bn-BD') : 'নতুন';
+        const waLink = `https://api.whatsapp.com/send/?phone=88${item.whatsapp}&text=আপনার+ট্যাক্স+রিটার্ন+সেবা+সম্পর্কে+যোগাযোগ+করছি।`;
+        html += `<tr>
+          <td>${idx+1}<\/td>
+          <td>${escapeHtml(item.fullName || '—')}<\/td>
+          <td><a href="${waLink}" target="_blank" class="whatsapp-link"><i class="fab fa-whatsapp"></i> ${escapeHtml(item.whatsapp)}<\/a><\/td>
+          <td>${escapeHtml(item.bankName || '—')}<\/td>
+          <td>${date}<\/td>
+          <td><button class="delete-btn" onclick="deleteEntry('${item.id}')"><i class="fas fa-trash-alt"></i><\/button><\/td>
+        <\/tr>`;
+      });
+      tbody.innerHTML = html;
+    } catch(e) {
+      console.error('Error loading data:', e);
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">ডাটা লোড করতে ব্যর্থ। Firebase Rules চেক করুন।<\/td><\/tr>';
+    }
+  };
+
+  window.deleteEntry = async (id) => {
+    if (confirm('আপনি কি এই আবেদনটি ডিলিট করতে চান?')) {
+      try {
+        await db.ref('customers/' + id).remove();
+        loadData();
+      } catch(e) {
+        alert('ডিলিট করতে ব্যর্থ: ' + e.message);
+      }
+    }
+  };
+
+  window.exportToCSV = () => {
+    if (currentData.length === 0) { alert('কোনো ডাটা নেই'); return; }
+    let csv = "\uFEFFক্রমিক,নাম,WhatsApp নম্বর,ব্যাংকের নাম,তারিখ\n";
+    currentData.forEach((item, i) => {
+      const date = item.timestamp ? new Date(item.timestamp).toLocaleString('bn-BD') : '';
+      csv += `${i+1},"${item.fullName || ''}","${item.whatsapp || ''}","${item.bankName || ''}","${date}"\n`;
+    });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `landtax_applications_${new Date().toISOString().slice(0,19)}.csv`;
+    link.click();
+  };
+
+  window.exportToExcel = () => {
+    if (currentData.length === 0) { alert('কোনো ডাটা নেই'); return; }
+    const excelData = currentData.map((item, i) => ({
+      'ক্রমিক': i+1,
+      'নাম': item.fullName || '',
+      'WhatsApp নম্বর': item.whatsapp || '',
+      'ব্যাংকের নাম': item.bankName || '',
+      'তারিখ': item.timestamp ? new Date(item.timestamp).toLocaleString('bn-BD') : ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Applications');
+    XLSX.writeFile(wb, `landtax_applications_${new Date().toISOString().slice(0,19)}.xlsx`);
+  };
+
+  function escapeHtml(str) { 
+    if (!str) return ''; 
+    return str.replace(/[&<>]/g, function(m) { 
+      if (m === '&') return '&amp;'; 
+      if (m === '<') return '&lt;'; 
+      if (m === '>') return '&gt;'; 
+      return m; 
+    }); 
+  }
+<\/script>
+<\/body>
+<\/html>
